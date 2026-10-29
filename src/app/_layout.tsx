@@ -58,10 +58,11 @@ export default function RootLayout() {
               animation: 'fade',
             }}
           >
-            <Stack.Screen name="index" />
+            <Stack.Screen name="index" options={{ orientation: 'portrait' }} />
             <Stack.Screen
               name="game"
               options={{
+                orientation: 'landscape',
                 animation: 'fade',
                 gestureEnabled: false,
               }}
@@ -69,6 +70,7 @@ export default function RootLayout() {
             <Stack.Screen
               name="summary"
               options={{
+                orientation: 'portrait',
                 animation: 'slide_from_right',
                 gestureEnabled: false,
               }}

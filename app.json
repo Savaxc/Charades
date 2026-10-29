@@ -3,12 +3,13 @@
     "name": "Charades",
     "slug": "charades",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "charades",
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
+      "requireFullScreen": true,
       "bundleIdentifier": "com.charades.party"
     },
     "android": {

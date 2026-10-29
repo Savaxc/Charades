@@ -7,6 +7,8 @@ objašnjavaš pojmove ekipi. Nagib nagore preskače pojam, nagib nadole nosi poe
 
 - 4 kategorije: **Filmovi**, **Muzika**, **Životinje** i **Glume** (oko 65 pojmova po kategoriji).
 - Odbrojavanje **3 · 2 · 1** pre početka i kružni tajmer od **60 / 90 / 120 sekundi**.
+- Runda se igra u **horizontalnom položaju** sa velikim, čitljivim pojmovima; uspravan
+  telefon prikazuje ekran „Okreni telefon“ i automatski pauzira rundu.
 - Kontrola nagibom preko akcelerometra (`expo-sensors`) sa kalibracijom tokom odbrojavanja.
 - Ručna dugmad **TAČNO** i **PRESKOČI** kao zamena kada senzor nije dostupan.
 - Zvuk za odbrojavanje, poslednjih 10 sekundi, tačan odgovor, preskok i kraj runde.
@@ -47,6 +49,10 @@ npx expo run:ios
 npx expo run:android
 ```
 
+> Orijentacija ekrana je deo native konfiguracije (`app.json`). U Expo Go radi odmah,
+> a ako već imaš instaliran custom development build, napravi novi build da bi se
+> landscape zaključavanje primenilo.
+
 Proveri okruženje i tipove:
 
 ```bash
@@ -57,12 +63,18 @@ npx expo-doctor
 ## Kako se igra
 
 1. Na početnom ekranu izaberi kategoriju i trajanje, pa dodirni **Započni rundu**.
-2. Stavi telefon na čelo, ekran okreni ka ekipi i drži telefon mirno tokom odbrojavanja
+2. Telefon se zaključava u **horizontalni (landscape) položaj** — tako pojmovi dobijaju
+   mnogo veći i čitljiviji prikaz. Ako ekran još nije horizontalan, prikazuje se
+   **Okreni telefon** i runda ne počinje dok se ne postavi landscape.
+3. Stavi telefon na čelo, ekran okreni ka ekipi i drži telefon mirno tokom odbrojavanja
    (senzor se tada kalibriše).
-3. Objašnjavaj pojam. **Nagni telefon nadole** za tačan odgovor ili **nagore** za preskok.
+4. Objašnjavaj pojam. **Nagni telefon nadole** za tačan odgovor ili **nagore** za preskok.
    Ako senzor ne reaguje, koristi dugmad na dnu ekrana.
-4. Runda se završava sama kada istekne vreme ili je prekineš preko pauze. Rezime stiže
-   nakon kratke završne animacije.
+5. Runda se završava sama kada istekne vreme ili je prekineš preko pauze. Rezime stiže
+   nakon kratke završne animacije i ponovo se prikazuje uspravno.
+
+Ako telefon vratiš u uspravan položaj tokom runde, igra se automatski pauzira dok se
+ekran ponovo ne postavi horizontalno.
 
 ### Napomene o senzorima
 
@@ -80,7 +92,7 @@ src/
   app/
     _layout.tsx      # fontovi, provajderi, Expo Router stack
     index.tsx        # izbor kategorije, trajanja i podešavanja
-    game.tsx         # odbrojavanje, runda, senzori, pauza, kraj
+    game.tsx         # landscape runda: odbrojavanje, senzori, pauza, kraj
     summary.tsx      # rezultat i lista pojmova
   components/        # WordCard, dugmad, pozadina, UI delovi
   constants/         # kategorije i pojmovi
@@ -124,6 +136,8 @@ npx serve dist
 ```
 
 Na webu zvuk i haptika zavise od browsera; kontrole nagibom su zamenjene dugmadima.
+Runda se i na webu prikazuje tek kada je prozor horizontalan (širina veća od visine),
+pa je za proveru najbolje koristiti landscape prozor ili rotirati telefon.
 
 ## Licenca
 

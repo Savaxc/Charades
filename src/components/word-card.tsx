@@ -1,6 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef } from 'react';
-import { Animated, Platform, Text, View, type TextStyle } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Platform,
+  Text,
+  View,
+  type LayoutChangeEvent,
+  type TextStyle,
+} from 'react-native';
 
 import type { Category, GameWord } from '@/types/game';
 
@@ -8,22 +15,8 @@ interface WordCardProps {
   word: GameWord | null;
   category: Category;
   index: number;
-}
-
-/**
- * Long single words (e.g. "Maratonci") get scaled down so they never need to
- * break in the middle on web, where `adjustsFontSizeToFit` is a no-op.
- */
-function getWordFontSize(text: string) {
-  const longest = text
-    .split(/[\s-]+/)
-    .reduce((max, part) => Math.max(max, part.length), 1);
-
-  const availableWidth = 276;
-  const estimatedCharWidth = 0.55;
-  const fitted = availableWidth / (longest * estimatedCharWidth);
-
-  return Math.round(Math.min(62, Math.max(24, fitted)));
+  /** Landscape game layout: bigger type, tighter chrome, no hint line. */
+  compact?: boolean;
 }
 
 const webNoWrapStyle =
@@ -31,13 +24,97 @@ const webNoWrapStyle =
     ? ({ overflowWrap: 'normal', wordBreak: 'keep-all' } as unknown as TextStyle)
     : undefined;
 
-export function WordCard({ word, category, index }: WordCardProps) {
-  const fontSize = getWordFontSize(word?.text ?? '—');
+function countLines(text: string, maxChars: number) {
+  const words = text.split(/\s+/).filter(Boolean);
+
+  if (words.length === 0) return 1;
+
+  let lines = 1;
+  let current = words[0].length;
+
+  for (let index = 1; index < words.length; index += 1) {
+    const wordLength = words[index].length;
+
+    if (current + 1 + wordLength <= maxChars) {
+      current += 1 + wordLength;
+    } else {
+      lines += 1;
+      current = wordLength;
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Picks the largest font size that fits both the width of the longest word and
+ * the available card height. This replaces `adjustsFontSizeToFit` on web and
+ * keeps long words such as "Fotografisanje" on a single line.
+ */
+function getWordFontSize(
+  text: string,
+  width: number,
+  height: number,
+  compact: boolean,
+) {
+  if (width <= 0 || height <= 0) {
+    return compact ? 62 : 52;
+  }
+
+  const horizontalPadding = compact ? 40 : 48;
+  const verticalReserved = compact ? 64 : 118;
+  const sizeCap = compact ? 104 : 76;
+  const minSize = 20;
+
+  const availableWidth = Math.max(90, width - horizontalPadding);
+  const availableHeight = Math.max(44, height - verticalReserved);
+  const longestWord = text
+    .split(/[\s-]+/)
+    .reduce((max, part) => Math.max(max, part.length), 1);
+  const startSize = Math.max(
+    minSize,
+    Math.min(
+      sizeCap,
+      Math.floor(availableHeight / 1.08),
+      Math.floor(availableWidth / (longestWord * 0.51)),
+    ),
+  );
+
+  for (let size = startSize; size >= minSize; size -= 2) {
+    const characterWidth = size * 0.51;
+
+    if (longestWord * characterWidth > availableWidth) continue;
+
+    const maxChars = Math.max(1, Math.floor(availableWidth / characterWidth));
+    const lines = countLines(text, maxChars);
+
+    if (lines > 3) continue;
+    if (lines * size * 1.08 <= availableHeight) return size;
+  }
+
+  return minSize;
+}
+
+export function WordCard({ word, category, index, compact = false }: WordCardProps) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
   const translateY = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
 
+  const text = word?.text ?? '—';
+  const fontSize = useMemo(
+    () => getWordFontSize(text, size.width, size.height, compact),
+    [compact, size.height, size.width, text],
+  );
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setSize((current) =>
+      current.width === width && current.height === height ? current : { width, height },
+    );
+  };
+
   useEffect(() => {
-    translateY.setValue(22);
+    translateY.setValue(compact ? 16 : 22);
     opacity.setValue(0.2);
 
     Animated.parallel([
@@ -54,16 +131,17 @@ export function WordCard({ word, category, index }: WordCardProps) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [opacity, translateY, word?.id]);
+  }, [compact, opacity, translateY, word?.id]);
 
   return (
     <Animated.View
+      onLayout={handleLayout}
       style={{
         flex: 1,
         opacity,
         transform: [{ translateY }],
         overflow: 'hidden',
-        borderRadius: 32,
+        borderRadius: compact ? 28 : 32,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
       }}
@@ -76,8 +154,9 @@ export function WordCard({ word, category, index }: WordCardProps) {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          paddingHorizontal: 24,
-          paddingVertical: 32,
+          paddingHorizontal: compact ? 20 : 24,
+          paddingTop: compact ? 48 : 32,
+          paddingBottom: compact ? 14 : 32,
         }}
       >
         <View
@@ -91,20 +170,34 @@ export function WordCard({ word, category, index }: WordCardProps) {
           className="absolute -bottom-14 -left-12 h-40 w-40 rounded-full opacity-[0.07]"
         />
 
-        <View className="absolute left-5 right-5 top-5 flex-row items-center justify-between">
+        <View
+          className={`absolute flex-row items-center justify-between ${
+            compact ? 'left-4 right-4 top-3.5' : 'left-5 right-5 top-5'
+          }`}
+        >
           <View
             style={{ borderColor: `${category.accent}55`, backgroundColor: `${category.accent}14` }}
-            className="flex-row items-center gap-1.5 rounded-full border px-3 py-1.5"
+            className={`flex-row items-center rounded-full border ${
+              compact ? 'gap-1 px-2.5 py-1' : 'gap-1.5 px-3 py-1.5'
+            }`}
           >
-            <Text className="text-xs">{category.emoji}</Text>
+            <Text className={compact ? 'text-[10px]' : 'text-xs'}>{category.emoji}</Text>
             <Text
               style={{ color: category.accent }}
-              className="font-body-bold text-[10px] uppercase tracking-[1.2px]"
+              className={`font-body-bold uppercase ${
+                compact
+                  ? 'text-[8px] tracking-[1px]'
+                  : 'text-[10px] tracking-[1.2px]'
+              }`}
             >
               {category.title}
             </Text>
           </View>
-          <Text className="font-body-bold text-[10px] uppercase tracking-[1.5px] text-white/30">
+          <Text
+            className={`font-body-bold uppercase text-white/30 ${
+              compact ? 'text-[9px] tracking-[1.3px]' : 'text-[10px] tracking-[1.5px]'
+            }`}
+          >
             Reč {String(index + 1).padStart(2, '0')}
           </Text>
         </View>
@@ -117,20 +210,22 @@ export function WordCard({ word, category, index }: WordCardProps) {
             {
               fontSize,
               lineHeight: Math.round(fontSize * 1.06),
-              letterSpacing: -fontSize * 0.025,
+              letterSpacing: -fontSize * 0.028,
             },
             webNoWrapStyle,
           ]}
           className="text-center font-display-black text-cream"
         >
-          {word?.text ?? '—'}
+          {text}
         </Text>
 
-        <View className="absolute bottom-5 left-5 right-5 flex-row items-center justify-center">
-          <Text className="font-body-semibold text-[11px] tracking-wide text-white/35">
-            Objasni drugačije ako zaglaviš
-          </Text>
-        </View>
+        {compact ? null : (
+          <View className="absolute bottom-5 left-5 right-5 flex-row items-center justify-center">
+            <Text className="font-body-semibold text-[11px] tracking-wide text-white/35">
+              Objasni drugačije ako zaglaviš
+            </Text>
+          </View>
+        )}
       </LinearGradient>
     </Animated.View>
   );

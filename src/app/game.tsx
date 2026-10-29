@@ -10,6 +10,7 @@ import {
   Platform,
   Pressable,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,8 +20,10 @@ import { WordCard } from '@/components/word-card';
 import { useTiltControls } from '@/hooks/use-tilt-controls';
 import { formatScore, formatTime } from '@/lib/utils';
 import { useGame } from '@/providers/game-provider';
+import type { Category, GameStatus } from '@/types/game';
 
 type FlashKind = 'correct' | 'skip';
+type SensorHint = 'checking' | 'ready' | 'missing';
 
 function ActionButton({
   kind,
@@ -37,49 +40,364 @@ function ActionButton({
       accessibilityLabel={correct ? 'Tačan odgovor' : 'Preskoči pojam'}
       onPress={onPress}
       style={({ pressed }) => [
-        { flex: 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
+        { flex: 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
       ]}
-      className={`h-[84px] justify-center rounded-[24px] border px-4 ${
-        correct
-          ? 'border-lime bg-lime'
-          : 'border-amber/35 bg-amber/[0.09]'
+      className={`h-[60px] flex-row items-center justify-center gap-3 rounded-[20px] border px-4 ${
+        correct ? 'border-lime bg-lime' : 'border-amber/35 bg-amber/[0.09]'
       }`}
     >
-      <View className="flex-row items-center gap-2.5">
-        <View
-          className={`h-10 w-10 items-center justify-center rounded-full ${
-            correct ? 'bg-ink' : 'bg-amber/15'
+      <View
+        className={`h-9 w-9 items-center justify-center rounded-full ${
+          correct ? 'bg-ink' : 'bg-amber/15'
+        }`}
+      >
+        <Ionicons
+          name={correct ? 'arrow-down' : 'arrow-up'}
+          size={19}
+          color={correct ? '#DDFA50' : '#FFC857'}
+        />
+      </View>
+      <View>
+        <Text
+          className={`font-display-black text-[16px] ${
+            correct ? 'text-ink' : 'text-amber'
           }`}
         >
-          <Ionicons
-            name={correct ? 'arrow-down' : 'arrow-up'}
-            size={20}
-            color={correct ? '#DDFA50' : '#FFC857'}
-          />
-        </View>
-        <View>
-          <Text
-            className={`font-display-black text-[16px] ${
-              correct ? 'text-ink' : 'text-amber'
-            }`}
-          >
-            {correct ? 'TAČNO' : 'PRESKOČI'}
-          </Text>
-          <Text
-            className={`mt-0.5 font-body-semibold text-[9px] uppercase tracking-[1px] ${
-              correct ? 'text-ink/50' : 'text-amber/55'
-            }`}
-          >
-            {correct ? 'nagni dole' : 'nagni gore'}
-          </Text>
-        </View>
+          {correct ? 'TAČNO' : 'PRESKOČI'}
+        </Text>
+        <Text
+          className={`mt-0.5 font-body-semibold text-[9px] uppercase tracking-[1px] ${
+            correct ? 'text-ink/50' : 'text-amber/55'
+          }`}
+        >
+          {correct ? 'nagni dole' : 'nagni gore'}
+        </Text>
       </View>
     </Pressable>
   );
 }
 
+function SensorStatus({
+  hint,
+  label,
+  compact = false,
+}: {
+  hint: SensorHint;
+  label?: string;
+  compact?: boolean;
+}) {
+  const color =
+    hint === 'ready' ? 'bg-lime' : hint === 'missing' ? 'bg-coral' : 'bg-white/30';
+  const text =
+    label ??
+    (hint === 'ready'
+      ? 'Senzor aktivan'
+      : hint === 'missing'
+        ? 'Koristi dugmad'
+        : 'Senzor…');
+
+  return (
+    <View className="flex-row items-center gap-1.5">
+      <View className={`h-1.5 w-1.5 rounded-full ${color}`} />
+      <Text
+        className={`font-body text-white/40 ${compact ? 'text-[9px]' : 'text-[10px]'}`}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+function RotateOverlay({
+  status,
+  category,
+  onExit,
+}: {
+  status: GameStatus;
+  category: Category;
+  onExit: () => void;
+}) {
+  const paused = status === 'PAUSED';
+
+  return (
+    <ScreenBackground>
+      <StatusBar hidden />
+      <AmbientOrb color={category.accent} size={280} top={-140} left={-120} />
+      <SafeAreaView
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}
+      >
+        <View
+          style={{ borderColor: `${category.accent}44`, backgroundColor: `${category.accent}12` }}
+          className="mb-7 flex-row items-center gap-2 rounded-full border px-3.5 py-1.5"
+        >
+          <Text className="text-[13px]">{category.emoji}</Text>
+          <Text
+            style={{ color: category.accent }}
+            className="font-body-bold text-[10px] uppercase tracking-[1.3px]"
+          >
+            {category.title}
+          </Text>
+        </View>
+
+        <View className="h-24 w-24 items-center justify-center rounded-[30px] border border-lime/25 bg-lime/10">
+          <Ionicons name="phone-landscape-outline" size={48} color="#DDFA50" />
+        </View>
+
+        <Text className="mt-7 text-center font-display-black text-[38px] tracking-[-1.4px] text-cream">
+          Okreni telefon
+        </Text>
+        <Text className="mt-2 max-w-[330px] text-center font-body text-[13px] leading-5 text-muted">
+          {paused
+            ? 'Runda je pauzirana. Postavi telefon horizontalno da nastaviš.'
+            : 'Runda se igra horizontalno kako bi pojmovi bili što veći i čitljiviji.'}
+        </Text>
+
+        <View className="mt-7 flex-row items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+          <Ionicons name="sync-outline" size={13} color="#DDFA50" />
+          <Text className="font-body-semibold text-[10px] uppercase tracking-[1px] text-white/55">
+            Ekran mora biti horizontalan
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Otkaži rundu"
+          onPress={onExit}
+          className="mt-8 rounded-2xl border border-white/10 bg-white/5 px-5 py-3"
+        >
+          <Text className="font-body-bold text-[12px] text-cream">Otkaži rundu</Text>
+        </Pressable>
+      </SafeAreaView>
+    </ScreenBackground>
+  );
+}
+
+function CountdownView({
+  category,
+  countdown,
+  duration,
+  sensorHint,
+  countScale,
+  countOpacity,
+  onExit,
+}: {
+  category: Category;
+  countdown: number;
+  duration: number;
+  sensorHint: SensorHint;
+  countScale: Animated.Value;
+  countOpacity: Animated.Value;
+  onExit: () => void;
+}) {
+  return (
+    <View style={{ flex: 1, paddingHorizontal: 18, paddingVertical: 8 }}>
+      <View className="flex-row items-center justify-between">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Zatvori pripremu"
+          onPress={onExit}
+          className="h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5"
+        >
+          <Ionicons name="close" size={19} color="#FFF9E9" />
+        </Pressable>
+
+        <View className="flex-row items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+          <View className="h-1.5 w-1.5 rounded-full bg-lime" />
+          <Text className="font-body-bold text-[9px] uppercase tracking-[1.5px] text-white/55">
+            Priprema · {duration}s
+          </Text>
+        </View>
+
+        <SensorStatus
+          hint={sensorHint}
+          label={
+            sensorHint === 'missing'
+              ? 'Senzor nije dostupan'
+              : 'Drži telefon mirno'
+          }
+        />
+      </View>
+
+      <View className="flex-1 flex-row items-center gap-6 px-2">
+        <View className="flex-1 items-center justify-center">
+          <View
+            style={{
+              borderColor: `${category.accent}44`,
+              backgroundColor: `${category.accent}12`,
+            }}
+            className="mb-3 flex-row items-center gap-2 rounded-full border px-3 py-1.5"
+          >
+            <Text className="text-[12px]">{category.emoji}</Text>
+            <Text
+              style={{ color: category.accent }}
+              className="font-body-bold text-[9px] uppercase tracking-[1.3px]"
+            >
+              {category.title}
+            </Text>
+          </View>
+
+          <Text className="font-body-bold text-[10px] uppercase tracking-[2.6px] text-white/35">
+            Spremi se
+          </Text>
+
+          <Animated.View
+            style={{
+              height: 150,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: countOpacity,
+              transform: [{ scale: countScale }],
+            }}
+          >
+            <Text className="font-display-black text-[126px] leading-[142px] tracking-[-7px] text-lime">
+              {countdown}
+            </Text>
+          </Animated.View>
+        </View>
+
+        <View className="flex-[1.15] justify-center">
+          <Text className="font-display-black text-[32px] leading-[35px] tracking-[-1px] text-cream">
+            Telefon na čelo,{'\n'}ekran ka ekipi.
+          </Text>
+          <Text className="mt-2 font-body text-[12px] leading-[18px] text-muted">
+            Drži telefon mirno dok traje odbrojavanje. Senzor se kalibriše u tom položaju.
+          </Text>
+
+          <View className="mt-4 flex-row gap-2.5">
+            <View className="flex-1 rounded-[18px] border border-white/10 bg-white/[0.045] px-3 py-2.5">
+              <View className="flex-row items-center gap-2">
+                <View className="h-7 w-7 items-center justify-center rounded-full bg-lime/15">
+                  <Ionicons name="arrow-down" size={14} color="#DDFA50" />
+                </View>
+                <View>
+                  <Text className="font-body-bold text-[10px] uppercase tracking-[0.8px] text-cream">
+                    Nadole
+                  </Text>
+                  <Text className="font-body text-[9px] text-muted">tačan odgovor</Text>
+                </View>
+              </View>
+            </View>
+
+            <View className="flex-1 rounded-[18px] border border-white/10 bg-white/[0.045] px-3 py-2.5">
+              <View className="flex-row items-center gap-2">
+                <View className="h-7 w-7 items-center justify-center rounded-full bg-amber/15">
+                  <Ionicons name="arrow-up" size={14} color="#FFC857" />
+                </View>
+                <View>
+                  <Text className="font-body-bold text-[10px] uppercase tracking-[0.8px] text-cream">
+                    Nagore
+                  </Text>
+                  <Text className="font-body text-[9px] text-muted">preskoči pojam</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <Text className="mt-3 font-body text-[9px] text-white/30">
+            Ako senzor ne reaguje, koristi dugmad ispod pojmova.
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function PauseOverlay({
+  onResume,
+  onFinish,
+  onExit,
+}: {
+  onResume: () => void;
+  onFinish: () => void;
+  onExit: () => void;
+}) {
+  return (
+    <View className="absolute inset-0 items-center justify-center bg-ink/95 px-6">
+      <View
+        style={{ width: '100%', maxWidth: 660 }}
+        className="rounded-[30px] border border-white/10 bg-surface p-6"
+      >
+        <View className="flex-row items-center gap-6">
+          <View className="flex-1">
+            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-lime/10">
+              <Ionicons name="pause" size={24} color="#DDFA50" />
+            </View>
+            <Text className="mt-3 font-display-black text-[34px] tracking-[-1px] text-cream">
+              Pauza
+            </Text>
+            <Text className="mt-1 max-w-[300px] font-body text-[12px] leading-[18px] text-muted">
+              Vreme je zaustavljeno. Nastavi kada je ekipa spremna.
+            </Text>
+          </View>
+
+          <View style={{ width: 240 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Nastavi rundu"
+              onPress={onResume}
+              className="h-[52px] flex-row items-center justify-center gap-2 rounded-2xl bg-lime"
+            >
+              <Ionicons name="play" size={17} color="#080C1A" />
+              <Text className="font-display-black text-[15px] text-ink">
+                Nastavi rundu
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Završi rundu"
+              onPress={onFinish}
+              className="mt-2 h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5"
+            >
+              <Text className="font-body-bold text-[12px] text-cream">
+                Završi i vidi rezultat
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Izađi na početni ekran"
+              onPress={onExit}
+              className="mt-2 items-center py-1.5"
+            >
+              <Text className="font-body-semibold text-[10px] text-white/35">
+                Izađi bez rezultata
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function FinishView({ score }: { score: number }) {
+  return (
+    <View className="flex-1 items-center justify-center px-7">
+      <View className="flex-row items-center gap-6">
+        <View className="h-[86px] w-[86px] items-center justify-center rounded-[26px] border border-lime/25 bg-lime/10">
+          <Ionicons name="trophy-outline" size={40} color="#DDFA50" />
+        </View>
+        <View>
+          <Text className="font-display-black text-[46px] leading-[48px] tracking-[-2px] text-cream">
+            Vreme je!
+          </Text>
+          <Text className="mt-1 font-display-bold text-[23px] text-lime">
+            {formatScore(score)} {score === 1 ? 'poen' : 'poena'}
+          </Text>
+          <Text className="mt-1 font-body text-[12px] text-muted">
+            Prebacujem rezultat runde…
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function GameScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const {
     state,
     category,
@@ -109,9 +427,7 @@ export default function GameScreen() {
 
   const [countdown, setCountdown] = useState(3);
   const [flashKind, setFlashKind] = useState<FlashKind | null>(null);
-  const [sensorHint, setSensorHint] = useState<'checking' | 'ready' | 'missing'>(
-    'checking',
-  );
+  const [sensorHint, setSensorHint] = useState<SensorHint>('checking');
   const finishedRef = useRef(false);
   const lastTickSecondRef = useRef<number | null>(null);
   const countScale = useRef(new Animated.Value(0.7)).current;
@@ -145,8 +461,8 @@ export default function GameScreen() {
   }, [registerSkip, showFlash]);
 
   const { sensorAvailable } = useTiltControls({
-    active: state.status === 'PLAYING',
-    calibrating: state.status === 'COUNTDOWN',
+    active: state.status === 'PLAYING' && isLandscape,
+    calibrating: state.status === 'COUNTDOWN' && isLandscape,
     onCorrect: handleCorrect,
     onSkip: handleSkip,
   });
@@ -159,9 +475,17 @@ export default function GameScreen() {
     }
   }, [sensorAvailable]);
 
-  // 3 · 2 · 1 countdown.
+  // Keep the round paused while the phone is upright. On native the screen is
+  // locked to landscape, so this mainly covers web and refused iOS locks.
   useEffect(() => {
-    if (state.status !== 'COUNTDOWN') return;
+    if (!isLandscape && state.status === 'PLAYING') {
+      pauseRound();
+    }
+  }, [isLandscape, pauseRound, state.status]);
+
+  // 3 · 2 · 1 countdown only starts once the game is actually landscape.
+  useEffect(() => {
+    if (state.status !== 'COUNTDOWN' || !isLandscape) return;
 
     let current = 3;
     setCountdown(3);
@@ -182,10 +506,10 @@ export default function GameScreen() {
     }, 1_000);
 
     return () => clearInterval(interval);
-  }, [playSound, startPlaying, state.status]);
+  }, [isLandscape, playSound, startPlaying, state.status]);
 
   useEffect(() => {
-    if (state.status !== 'COUNTDOWN') return;
+    if (state.status !== 'COUNTDOWN' || !isLandscape) return;
 
     countScale.setValue(0.7);
     countOpacity.setValue(0);
@@ -204,16 +528,16 @@ export default function GameScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [countdown, countOpacity, countScale, state.status]);
+  }, [countdown, countOpacity, countScale, isLandscape, state.status]);
 
   // Precise-ish round clock. The reducer derives remaining time from a deadline,
   // so a missed interval cannot make the game run long.
   useEffect(() => {
-    if (state.status !== 'PLAYING') return;
+    if (state.status !== 'PLAYING' || !isLandscape) return;
 
     const interval = setInterval(tickRound, 200);
     return () => clearInterval(interval);
-  }, [state.status, tickRound]);
+  }, [isLandscape, state.status, tickRound]);
 
   useEffect(() => {
     if (state.status !== 'PLAYING') {
@@ -312,6 +636,12 @@ export default function GameScreen() {
     );
   }
 
+  if (!isLandscape) {
+    return (
+      <RotateOverlay status={state.status} category={category} onExit={handleExit} />
+    );
+  }
+
   const progress =
     state.duration > 0
       ? Math.max(0, Math.min(1, state.remainingMs / (state.duration * 1_000)))
@@ -322,153 +652,38 @@ export default function GameScreen() {
   return (
     <ScreenBackground colors={[category.gradient[0], '#080C1A', '#080C1A']}>
       <StatusBar hidden />
-      <AmbientOrb color={category.accent} size={300} top={-130} right={-150} />
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+      <AmbientOrb color={category.accent} size={300} top={-160} right={-150} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         {state.status === 'COUNTDOWN' ? (
-          <View className="flex-1 px-5">
-            <View className="flex-row items-center justify-between pt-2">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Zatvori pripremu"
-                onPress={handleExit}
-                className="h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5"
-              >
-                <Ionicons name="close" size={21} color="#FFF9E9" />
-              </Pressable>
-
-              <View className="flex-row items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-2">
-                <View className="h-1.5 w-1.5 rounded-full bg-lime" />
-                <Text className="font-body-bold text-[9px] uppercase tracking-[1.5px] text-white/55">
-                  Priprema
-                </Text>
-              </View>
-
-              <View className="h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5">
-                <Text className="font-body-bold text-[11px] text-white/55">
-                  {state.duration}s
-                </Text>
-              </View>
-            </View>
-
-            <View className="flex-1 items-center justify-center pb-2">
-              <View
-                style={{
-                  borderColor: `${category.accent}44`,
-                  backgroundColor: `${category.accent}12`,
-                }}
-                className="mb-5 flex-row items-center gap-2 rounded-full border px-3.5 py-1.5"
-              >
-                <Text className="text-[13px]">{category.emoji}</Text>
-                <Text
-                  style={{ color: category.accent }}
-                  className="font-body-bold text-[10px] uppercase tracking-[1.4px]"
-                >
-                  {category.title}
-                </Text>
-              </View>
-
-              <Text className="font-body-bold text-[11px] uppercase tracking-[2.8px] text-white/35">
-                Spremi se
-              </Text>
-
-              <Animated.View
-                style={{
-                  height: 158,
-                  marginVertical: 4,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: countOpacity,
-                  transform: [{ scale: countScale }],
-                }}
-              >
-                <Text className="font-display-black text-[132px] leading-[150px] tracking-[-7px] text-lime">
-                  {countdown}
-                </Text>
-              </Animated.View>
-
-              <Text className="mt-1 max-w-[290px] text-center font-display-bold text-[23px] leading-7 tracking-[-0.4px] text-cream">
-                Telefon na čelo,{'\n'}ekran ka ekipi.
-              </Text>
-
-              <Text className="mt-3 text-center font-body text-[12px] leading-[18px] text-muted">
-                Drži telefon mirno dok traje odbrojavanje.
-              </Text>
-            </View>
-
-            <View className="mb-2 flex-row gap-3">
-              <View className="flex-1 rounded-[22px] border border-white/10 bg-white/[0.045] p-3.5">
-                <View className="mb-2 h-8 w-8 items-center justify-center rounded-full bg-lime/15">
-                  <Ionicons name="arrow-down" size={16} color="#DDFA50" />
-                </View>
-                <Text className="font-body-bold text-[11px] uppercase tracking-[1px] text-cream">
-                  Nadole
-                </Text>
-                <Text className="mt-0.5 font-body text-[10px] text-muted">tačan odgovor</Text>
-              </View>
-
-              <View className="flex-1 rounded-[22px] border border-white/10 bg-white/[0.045] p-3.5">
-                <View className="mb-2 h-8 w-8 items-center justify-center rounded-full bg-amber/15">
-                  <Ionicons name="arrow-up" size={16} color="#FFC857" />
-                </View>
-                <Text className="font-body-bold text-[11px] uppercase tracking-[1px] text-cream">
-                  Nagore
-                </Text>
-                <Text className="mt-0.5 font-body text-[10px] text-muted">preskoči pojam</Text>
-              </View>
-            </View>
-
-            <View className="mb-2 flex-row items-center justify-center gap-2 py-2">
-              <View
-                className={`h-1.5 w-1.5 rounded-full ${
-                  sensorHint === 'ready'
-                    ? 'bg-lime'
-                    : sensorHint === 'missing'
-                      ? 'bg-coral'
-                      : 'bg-white/30'
-                }`}
-              />
-              <Text className="font-body text-[10px] text-white/40">
-                {sensorHint === 'ready'
-                  ? 'Senzor spreman · drži telefon mirno'
-                  : sensorHint === 'missing'
-                    ? 'Senzor nije dostupan · koristite dugmad'
-                    : 'Proveravam senzor…'}
-              </Text>
-            </View>
-          </View>
+          <CountdownView
+            category={category}
+            countdown={countdown}
+            duration={state.duration}
+            sensorHint={sensorHint}
+            countScale={countScale}
+            countOpacity={countOpacity}
+            onExit={handleExit}
+          />
         ) : state.status === 'SUMMARY' ? (
-          <View className="flex-1 items-center justify-center px-7">
-            <View className="h-20 w-20 items-center justify-center rounded-[28px] border border-lime/25 bg-lime/10">
-              <Ionicons name="trophy-outline" size={38} color="#DDFA50" />
-            </View>
-            <Text className="mt-7 font-display-black text-[52px] leading-[55px] tracking-[-2px] text-cream">
-              Vreme je!
-            </Text>
-            <Text className="mt-3 font-display-bold text-[24px] text-lime">
-              {formatScore(state.score)} {state.score === 1 ? 'poen' : 'poena'}
-            </Text>
-            <Text className="mt-3 font-body text-[13px] text-muted">
-              Prebacujem rezultat runde…
-            </Text>
-          </View>
+          <FinishView score={state.score} />
         ) : (
-          <View className="flex-1 px-5">
-            <View className="flex-row items-center justify-between pt-1">
+          <View className="flex-1 px-4 py-2">
+            <View className="flex-row items-center gap-3">
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Pauza"
                 onPress={pauseRound}
-                className="h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5"
+                className="h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5"
               >
-                <Ionicons name="pause" size={19} color="#FFF9E9" />
+                <Ionicons name="pause" size={17} color="#FFF9E9" />
               </Pressable>
 
-              <View className="items-center">
-                <Text className="font-body-bold text-[8px] uppercase tracking-[1.7px] text-white/35">
+              <View className="flex-row items-baseline gap-1.5">
+                <Text className="font-body-bold text-[8px] uppercase tracking-[1.5px] text-white/35">
                   Preostalo
                 </Text>
                 <Text
-                  className={`mt-0.5 font-display-black text-[29px] leading-[30px] tracking-[-1px] ${
+                  className={`font-display-black text-[24px] leading-[26px] tracking-[-0.8px] ${
                     urgent ? 'text-coral' : 'text-cream'
                   }`}
                 >
@@ -476,122 +691,48 @@ export default function GameScreen() {
                 </Text>
               </View>
 
-              <View className="min-w-[64px] items-end">
-                <Text className="font-body-bold text-[8px] uppercase tracking-[1.5px] text-white/35">
-                  Poeni
-                </Text>
-                <Text className="mt-0.5 font-display-black text-[25px] leading-[26px] text-lime">
-                  {formatScore(state.score)}
-                </Text>
-              </View>
-            </View>
-
-            <View className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.075]">
-              <View
-                style={{
-                  width: `${progress * 100}%`,
-                  backgroundColor: urgent ? '#FF6B6B' : category.accent,
-                }}
-                className="h-full rounded-full"
-              />
-            </View>
-
-            <View className="mt-3 flex-row items-center justify-between">
-              <View className="flex-row items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5">
-                <Ionicons name="eye-outline" size={12} color="#FFF9E9" />
-                <Text className="font-body-bold text-[9px] uppercase tracking-[1.2px] text-white/55">
-                  Pogodi pojam
-                </Text>
+              <View className="h-[5px] flex-1 overflow-hidden rounded-full bg-white/[0.075]">
+                <View
+                  style={{
+                    width: `${progress * 100}%`,
+                    backgroundColor: urgent ? '#FF6B6B' : category.accent,
+                  }}
+                  className="h-full rounded-full"
+                />
               </View>
 
               <View className="flex-row items-center gap-1.5">
-                <View
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    sensorHint === 'ready'
-                      ? 'bg-lime'
-                      : sensorHint === 'missing'
-                        ? 'bg-coral'
-                        : 'bg-white/30'
-                  }`}
-                />
-                <Text className="font-body text-[9px] text-white/35">
-                  {sensorHint === 'ready'
-                    ? 'Senzor aktivan'
-                    : sensorHint === 'missing'
-                      ? 'Koristi dugmad'
-                      : 'Senzor…'}
+                <Text className="font-body-bold text-[8px] uppercase tracking-[1.4px] text-white/35">
+                  Poeni
+                </Text>
+                <Text className="font-display-black text-[23px] leading-[25px] text-lime">
+                  {formatScore(state.score)}
                 </Text>
               </View>
+
+              <SensorStatus hint={sensorHint} compact />
             </View>
 
-            <View className="mt-3 flex-1">
+            <View className="mt-2 flex-1">
               <WordCard
                 word={currentWord}
                 category={category}
                 index={state.currentIndex}
+                compact
               />
             </View>
 
-            <View className="mt-3.5 flex-row gap-3">
+            <View className="mt-2 flex-row gap-2.5">
               <ActionButton kind="skip" onPress={handleSkip} />
               <ActionButton kind="correct" onPress={handleCorrect} />
             </View>
 
-            <View className="h-7 flex-row items-center justify-center gap-1.5">
-              <Ionicons name="information-circle-outline" size={12} color="#60677D" />
-              <Text className="font-body text-[9px] text-white/30">
-                Dodirni dugme ako senzor ne reaguje
-              </Text>
-            </View>
-
             {state.status === 'PAUSED' ? (
-              <View className="absolute inset-0 items-center justify-center bg-ink/95 px-6">
-                <View className="w-full rounded-[32px] border border-white/10 bg-surface p-6">
-                  <View className="h-14 w-14 items-center justify-center rounded-2xl bg-lime/10">
-                    <Ionicons name="pause" size={26} color="#DDFA50" />
-                  </View>
-                  <Text className="mt-5 font-display-black text-[36px] tracking-[-1px] text-cream">
-                    Pauza
-                  </Text>
-                  <Text className="mt-2 font-body text-[13px] leading-5 text-muted">
-                    Vreme je zaustavljeno. Nastavi kada je ekipa spremna.
-                  </Text>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Nastavi rundu"
-                    onPress={resumeRound}
-                    className="mt-6 h-14 flex-row items-center justify-center gap-2 rounded-2xl bg-lime"
-                  >
-                    <Ionicons name="play" size={18} color="#080C1A" />
-                    <Text className="font-display-black text-[16px] text-ink">
-                      Nastavi rundu
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Završi rundu"
-                    onPress={finishRound}
-                    className="mt-2.5 h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5"
-                  >
-                    <Text className="font-body-bold text-[12px] text-cream">
-                      Završi i vidi rezultat
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Izađi na početni ekran"
-                    onPress={handleExit}
-                    className="mt-3 items-center py-2"
-                  >
-                    <Text className="font-body-semibold text-[11px] text-white/35">
-                      Izađi bez rezultata
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
+              <PauseOverlay
+                onResume={resumeRound}
+                onFinish={finishRound}
+                onExit={handleExit}
+              />
             ) : null}
           </View>
         )}
@@ -614,4 +755,3 @@ export default function GameScreen() {
     </ScreenBackground>
   );
 }
-
