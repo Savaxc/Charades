@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <mask id="cutout">
+      <rect width="1024" height="1024" fill="black"/>
+      <g transform="rotate(-8 512 512)">
+        <rect x="288" y="237" width="447" height="550" rx="126" fill="white"/>
+        <text x="512" y="653" font-family="Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="378" font-weight="800" fill="black" text-anchor="middle">?</text>
+      </g>
+    </mask>
+  </defs>
+  <rect width="1024" height="1024" fill="white" mask="url(#cutout)"/>
+</svg>
