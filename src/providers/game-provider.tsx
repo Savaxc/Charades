@@ -11,7 +11,7 @@ import {
   type PropsWithChildren,
 } from 'react';
 
-import { getCategory } from '@/constants/categories';
+import { CATEGORIES, getCategories, getCategory } from '@/constants/categories';
 import { shuffle } from '@/lib/utils';
 import type {
   Category,
@@ -27,7 +27,7 @@ type FeedbackName = 'success' | 'warning' | 'light' | 'medium';
 
 const INITIAL_STATE: GameState = {
   status: 'IDLE',
-  categoryId: null,
+  categoryIds: [],
   duration: 60,
   deck: [],
   currentIndex: 0,
@@ -41,7 +41,7 @@ const INITIAL_STATE: GameState = {
 type Action =
   | {
       type: 'START_ROUND';
-      categoryId: CategoryId;
+      categoryIds: CategoryId[];
       duration: number;
       deck: GameWord[];
     }
@@ -64,6 +64,7 @@ function addResult(state: GameState, status: ResultStatus, now: number): GameSta
     text: word.text,
     status,
     at: now,
+    categoryId: word.categoryId,
   };
 
   return {
@@ -80,7 +81,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       return {
         ...INITIAL_STATE,
         status: 'COUNTDOWN',
-        categoryId: action.categoryId,
+        categoryIds: action.categoryIds,
         duration: action.duration,
         deck: action.deck,
         remainingMs: action.duration * 1_000,
@@ -158,7 +159,9 @@ function gameReducer(state: GameState, action: Action): GameState {
 
 interface GameContextValue {
   state: GameState;
+  categories: Category[];
   category: Category;
+  currentCategory: Category;
   currentWord: GameWord | null;
   remainingSeconds: number;
   elapsedSeconds: number;
@@ -166,7 +169,7 @@ interface GameContextValue {
   hapticsEnabled: boolean;
   setSoundEnabled: (enabled: boolean) => void;
   setHapticsEnabled: (enabled: boolean) => void;
-  startRound: (categoryId: CategoryId, duration: number) => void;
+  startRound: (categoryIds: CategoryId[], duration: number) => void;
   startPlaying: () => void;
   tickRound: () => void;
   registerCorrect: () => void;
@@ -247,14 +250,28 @@ export function GameProvider({ children }: PropsWithChildren) {
     [hapticsEnabled],
   );
 
-  const startRound = useCallback((categoryId: CategoryId, duration: number) => {
-    const category = getCategory(categoryId);
-    const deck = shuffle(category.words).map((text, index) => ({
-      id: `${category.id}-${index}-${text}`,
-      text,
-    }));
+  const startRound = useCallback((categoryIds: CategoryId[], duration: number) => {
+    const selectedIds =
+      categoryIds.length > 0 ? categoryIds : [CATEGORIES[0].id];
 
-    dispatch({ type: 'START_ROUND', categoryId, duration, deck });
+    const deck = shuffle(
+      selectedIds.flatMap((categoryId) => {
+        const category = getCategory(categoryId);
+
+        return category.words.map((text, index) => ({
+          id: `${category.id}-${index}-${text}`,
+          text,
+          categoryId: category.id,
+        }));
+      }),
+    );
+
+    dispatch({
+      type: 'START_ROUND',
+      categoryIds: selectedIds,
+      duration,
+      deck,
+    });
   }, []);
 
   const startPlaying = useCallback(() => {
@@ -295,9 +312,13 @@ export function GameProvider({ children }: PropsWithChildren) {
     dispatch({ type: 'RESET' });
   }, []);
 
-  const category = getCategory(state.categoryId);
+  const categories = getCategories(state.categoryIds);
+  const category = categories[0] ?? getCategory(null);
   const currentWord =
     state.deck.length > 0 ? state.deck[state.currentIndex % state.deck.length] : null;
+  const currentCategory = currentWord
+    ? getCategory(currentWord.categoryId)
+    : category;
   const remainingSeconds = Math.ceil(state.remainingMs / 1_000);
   const elapsedSeconds = Math.max(
     0,
@@ -307,7 +328,9 @@ export function GameProvider({ children }: PropsWithChildren) {
   const value = useMemo<GameContextValue>(
     () => ({
       state,
+      categories,
       category,
+      currentCategory,
       currentWord,
       remainingSeconds,
       elapsedSeconds,
@@ -328,7 +351,9 @@ export function GameProvider({ children }: PropsWithChildren) {
       triggerFeedback,
     }),
     [
+      categories,
       category,
+      currentCategory,
       currentWord,
       elapsedSeconds,
       finishRound,

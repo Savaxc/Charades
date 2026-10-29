@@ -55,5 +55,6 @@ export function AmbientOrb({
 const styles = StyleSheet.create({
   fill: {
     flex: 1,
+    overflow: 'hidden',
   },
 });

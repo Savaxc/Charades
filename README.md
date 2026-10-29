@@ -1,11 +1,16 @@
 # Charades — igra pogađanja pojmova
 
-Expo / React Native aplikacija za žurke: izabereš kategoriju, staviš telefon na čelo i
-objašnjavaš pojmove ekipi. Nagib nagore preskače pojam, nagib nadole nosi poen.
+Expo / React Native aplikacija za žurke: izabereš jednu ili više kategorija, staviš telefon na
+čelo i objašnjavaš pojmove ekipi. Nagib nagore preskače pojam, nagib nadole nosi poen.
 
 ## Funkcije
 
-- 4 kategorije: **Filmovi**, **Muzika**, **Životinje** i **Glume** (oko 65 pojmova po kategoriji).
+- **7 kategorija** (342 pojma ukupno): **Domaći filmovi**, **Strani filmovi**,
+  **Domaće serije**, **Strane serije**, **Muzika**, **Životinje** i **Glume**.
+- Više kategorija može biti izabrano istovremeno — pojmovi se mešaju u istu rundu, a
+  svaki pojam zadržava oznaku svoje kategorije.
+- Kategorije su raspoređene u grupe **Film i serije** (2×2 mreža) i **Ostalo** (tri
+  kompaktne kartice), sa jasno označenim izborom i brojem pojmova.
 - Odbrojavanje **3 · 2 · 1** pre početka i kružni tajmer od **60 / 90 / 120 sekundi**.
 - Runda se igra u **horizontalnom položaju** sa velikim, čitljivim pojmovima; uspravan
   telefon prikazuje ekran „Okreni telefon“ i automatski pauzira rundu.
@@ -62,7 +67,8 @@ npx expo-doctor
 
 ## Kako se igra
 
-1. Na početnom ekranu izaberi kategoriju i trajanje, pa dodirni **Započni rundu**.
+1. Na početnom ekranu izaberi jednu ili više kategorija i trajanje, pa dodirni
+   **Započni rundu**. Bar jedna kategorija mora ostati izabrana.
 2. Telefon se zaključava u **horizontalni (landscape) položaj** — tako pojmovi dobijaju
    mnogo veći i čitljiviji prikaz. Ako ekran još nije horizontalan, prikazuje se
    **Okreni telefon** i runda ne počinje dok se ne postavi landscape.
@@ -91,7 +97,7 @@ ekran ponovo ne postavi horizontalno.
 src/
   app/
     _layout.tsx      # fontovi, provajderi, Expo Router stack
-    index.tsx        # izbor kategorije, trajanja i podešavanja
+    index.tsx        # izbor kategorija, trajanja i podešavanja
     game.tsx         # landscape runda: odbrojavanje, senzori, pauza, kraj
     summary.tsx      # rezultat i lista pojmova
   components/        # WordCard, dugmad, pozadina, UI delovi
@@ -112,8 +118,9 @@ assets/
 
 Pojmovi i kategorije su u `src/constants/categories.ts`. Svaka kategorija ima `id`,
 naziv, emoji, akcentnu boju, gradient i listu pojmova. Dovoljno je dodati novi objekat u
-`CATEGORIES` i, ako je potreban novi `id`, proširiti `CategoryId` u
-`src/types/game.ts`.
+`CATEGORIES`, proširiti `CategoryId` u `src/types/game.ts` i dodati `id` u odgovarajuću
+grupu u `CATEGORY_GROUPS`. Grupe određuju i raspored kartica na početnom ekranu
+(`featured` za 2×2 mrežu i `compact` za red manjih kartica).
 
 Trajanja runde i njihove oznake su u `src/lib/utils.ts` (`DURATIONS`), a podrazumevano
 trajanje u `src/app/index.tsx`.

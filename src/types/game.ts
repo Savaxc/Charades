@@ -1,6 +1,13 @@
 export type GameStatus = 'IDLE' | 'COUNTDOWN' | 'PLAYING' | 'PAUSED' | 'SUMMARY';
 
-export type CategoryId = 'movies' | 'music' | 'animals' | 'acting';
+export type CategoryId =
+  | 'domestic-movies'
+  | 'foreign-movies'
+  | 'domestic-series'
+  | 'foreign-series'
+  | 'music'
+  | 'animals'
+  | 'acting';
 
 export type ResultStatus = 'correct' | 'skipped';
 
@@ -9,11 +16,13 @@ export interface RoundResult {
   text: string;
   status: ResultStatus;
   at: number;
+  categoryId: CategoryId;
 }
 
 export interface GameWord {
   id: string;
   text: string;
+  categoryId: CategoryId;
 }
 
 export interface Category {
@@ -28,7 +37,7 @@ export interface Category {
 
 export interface GameState {
   status: GameStatus;
-  categoryId: CategoryId | null;
+  categoryIds: CategoryId[];
   duration: number;
   deck: GameWord[];
   currentIndex: number;

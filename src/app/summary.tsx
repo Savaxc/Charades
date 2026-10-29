@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientOrb, ScreenBackground } from '@/components/screen-background';
 import { PrimaryButton } from '@/components/primary-button';
-import { formatScore } from '@/lib/utils';
+import { getCategory } from '@/constants/categories';
+import { formatCategoryCount, formatScore } from '@/lib/utils';
 import { useGame } from '@/providers/game-provider';
 
 function longestStreak(statuses: Array<'correct' | 'skipped'>): number {
@@ -28,7 +29,7 @@ function longestStreak(statuses: Array<'correct' | 'skipped'>): number {
 
 export default function SummaryScreen() {
   const router = useRouter();
-  const { state, category, startRound, resetRound, triggerFeedback } = useGame();
+  const { state, category, categories, startRound, resetRound, triggerFeedback } = useGame();
 
   const results = state.results;
   const correct = results.filter((result) => result.status === 'correct').length;
@@ -38,18 +39,22 @@ export default function SummaryScreen() {
     () => longestStreak(results.map((result) => result.status)),
     [results],
   );
-  const hasRound = state.status === 'SUMMARY' && state.categoryId !== null;
+  const hasRound = state.status === 'SUMMARY' && state.categoryIds.length > 0;
 
   const handleReplay = () => {
-    if (!state.categoryId) return;
+    if (state.categoryIds.length === 0) return;
     triggerFeedback('medium');
-    startRound(state.categoryId, state.duration);
+    startRound(state.categoryIds, state.duration);
     router.replace('/game');
   };
 
   const handleHome = () => {
     resetRound();
-    router.replace('/');
+    if (router.canDismiss()) {
+      router.dismissTo('/');
+    } else {
+      router.replace('/');
+    }
   };
 
   if (!hasRound) {
@@ -101,12 +106,25 @@ export default function SummaryScreen() {
               }}
               className="flex-row items-center gap-2 rounded-full border px-3.5 py-2"
             >
-              <Text className="text-[13px]">{category.emoji}</Text>
+              <View className="flex-row items-center gap-0.5">
+                {categories.slice(0, 3).map((item) => (
+                  <Text key={item.id} className="text-[13px]">
+                    {item.emoji}
+                  </Text>
+                ))}
+                {categories.length > 3 ? (
+                  <Text className="ml-0.5 font-body-bold text-[8px] text-white/45">
+                    +{categories.length - 3}
+                  </Text>
+                ) : null}
+              </View>
               <Text
                 style={{ color: category.accent }}
                 className="font-body-bold text-[10px] uppercase tracking-[1.3px]"
               >
-                {category.title}
+                {categories.length === 1
+                  ? categories[0].title
+                  : `${categories.length} ${formatCategoryCount(categories.length)}`}
               </Text>
             </View>
             <Text className="font-body-bold text-[10px] uppercase tracking-[1.6px] text-white/35">
@@ -220,6 +238,9 @@ export default function SummaryScreen() {
                     <Text className="flex-1 font-body-semibold text-[13px] text-cream">
                       {result.text}
                     </Text>
+                    <Text className="text-[11px] opacity-70">
+                      {getCategory(result.categoryId).emoji}
+                    </Text>
                     <Text
                       className={`font-body-bold text-[9px] uppercase tracking-[0.8px] ${
                         isCorrect ? 'text-lime/70' : 'text-amber/70'
@@ -245,11 +266,11 @@ export default function SummaryScreen() {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Nova runda"
+            accessibilityLabel="Promeni kategorije"
             onPress={handleHome}
             className="mt-2.5 h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045]"
           >
-            <Text className="font-body-bold text-[12px] text-cream">Izaberi novu kategoriju</Text>
+            <Text className="font-body-bold text-[12px] text-cream">Promeni kategorije</Text>
           </Pressable>
 
           <Text className="mt-5 text-center font-body text-[9px] uppercase tracking-[1.4px] text-white/20">

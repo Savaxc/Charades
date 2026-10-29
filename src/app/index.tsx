@@ -7,14 +7,18 @@ import { AmbientOrb, ScreenBackground } from '@/components/screen-background';
 import { CategoryCard } from '@/components/category-card';
 import { PrimaryButton } from '@/components/primary-button';
 import { SettingRow } from '@/components/setting-row';
-import { CATEGORIES, getCategory } from '@/constants/categories';
-import { DURATIONS, type RoundDuration } from '@/lib/utils';
+import { CATEGORIES, CATEGORY_GROUPS, getCategory } from '@/constants/categories';
+import {
+  DURATIONS,
+  formatCategoryCount,
+  type RoundDuration,
+} from '@/lib/utils';
 import { useGame } from '@/providers/game-provider';
 import { useMemo, useState } from 'react';
 import type { CategoryId } from '@/types/game';
 
 const STEPS = [
-  { number: '1', label: 'Izaberi kategoriju' },
+  { number: '1', label: 'Izaberi kategorije' },
   { number: '2', label: 'Stavi na čelo' },
   { number: '3', label: 'Naginji i pogađaj' },
 ];
@@ -30,14 +34,43 @@ export default function HomeScreen() {
     triggerFeedback,
   } = useGame();
 
-  const [selectedId, setSelectedId] = useState<CategoryId>('movies');
+  const [selectedIds, setSelectedIds] = useState<CategoryId[]>(['domestic-movies']);
   const [duration, setDuration] = useState<RoundDuration>(60);
 
-  const selectedCategory = useMemo(() => getCategory(selectedId), [selectedId]);
+  const selectedCategories = useMemo(
+    () => CATEGORIES.filter((category) => selectedIds.includes(category.id)),
+    [selectedIds],
+  );
+  const wordCount = selectedCategories.reduce(
+    (total, category) => total + category.words.length,
+    0,
+  );
+
+  const toggleCategory = (categoryId: CategoryId) => {
+    const isSelected = selectedIds.includes(categoryId);
+
+    if (isSelected && selectedIds.length === 1) {
+      triggerFeedback('warning');
+      return;
+    }
+
+    const nextIds = isSelected
+      ? selectedIds.filter((id) => id !== categoryId)
+      : [...selectedIds, categoryId];
+
+    // Keep the deck order stable regardless of the tap order.
+    setSelectedIds(
+      CATEGORIES.filter((category) => nextIds.includes(category.id)).map(
+        (category) => category.id,
+      ),
+    );
+    triggerFeedback('light');
+  };
 
   const handleStart = () => {
+    if (selectedIds.length === 0) return;
     triggerFeedback('medium');
-    startRound(selectedId, duration);
+    startRound(selectedIds, duration);
     router.push('/game');
   };
 
@@ -103,33 +136,64 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          <View className="mt-10 flex-row items-end justify-between">
-            <View>
+          <View className="mt-10">
+            <View className="flex-row items-start justify-between">
               <Text className="font-body-bold text-[10px] uppercase tracking-[2px] text-white/35">
-                Kategorija
+                Kategorije
               </Text>
-              <Text className="mt-1 font-display-bold text-[25px] tracking-[-0.6px] text-cream">
-                Šta objašnjavamo?
-              </Text>
+              <View className="shrink-0 items-end">
+                <View className="rounded-full border border-lime/20 bg-lime/10 px-2.5 py-1">
+                  <Text className="font-body-bold text-[9px] uppercase tracking-[0.8px] text-lime">
+                    {selectedIds.length} {formatCategoryCount(selectedIds.length)}
+                  </Text>
+                </View>
+                <Text className="mt-1 font-body text-[10px] text-muted">
+                  {wordCount} pojmova
+                </Text>
+              </View>
             </View>
-            <Text className="pb-1 font-body text-[11px] text-muted">
-              {selectedCategory.words.length} pojmova
+            <Text className="mt-2 font-display-bold text-[25px] tracking-[-0.6px] text-cream">
+              Šta objašnjavamo?
+            </Text>
+            <Text className="mt-2 font-body text-[11px] leading-[17px] text-white/35">
+              Izaberi jednu ili više kategorija — pojmovi se mešaju u istoj rundi.
             </Text>
           </View>
 
-          <View className="mt-4 flex-row flex-wrap justify-between gap-y-3">
-            {CATEGORIES.map((category) => (
-              <CategoryCard
-                key={category.id}
-                category={category}
-                selected={selectedId === category.id}
-                onPress={() => {
-                  setSelectedId(category.id);
-                  triggerFeedback('light');
-                }}
-              />
-            ))}
-          </View>
+          {CATEGORY_GROUPS.map((group) => {
+            const groupCategories = group.ids.map((id) => getCategory(id));
+            const compact = group.id === 'other';
+
+            return (
+              <View key={group.id} className="mt-5">
+                <View className="flex-row items-center justify-between">
+                  <Text className="font-body-bold text-[9px] uppercase tracking-[1.8px] text-white/35">
+                    {group.title}
+                  </Text>
+                  <Text className="font-body text-[9px] text-white/25">
+                    {groupCategories.length} {formatCategoryCount(groupCategories.length)}
+                  </Text>
+                </View>
+
+                <View
+                  className={`mt-2.5 flex-row ${
+                    compact ? 'gap-2' : 'flex-wrap justify-between gap-y-2.5'
+                  }`}
+                >
+                  {groupCategories.map((category) => (
+                    <CategoryCard
+                      key={category.id}
+                      category={category}
+                      selected={selectedIds.includes(category.id)}
+                      onPress={() => toggleCategory(category.id)}
+                      variant={compact ? 'compact' : 'featured'}
+                      style={compact ? { flex: 1 } : { width: '48.4%' }}
+                    />
+                  ))}
+                </View>
+              </View>
+            );
+          })}
 
           <View className="mt-8 flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">

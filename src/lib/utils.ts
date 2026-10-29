@@ -13,6 +13,17 @@ export function formatScore(score: number): string {
   return score.toString().padStart(2, '0');
 }
 
+export function formatCategoryCount(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+
+  if (last === 1 && lastTwo !== 11) return 'kategorija';
+  if ([2, 3, 4].includes(last) && ![12, 13, 14].includes(lastTwo)) {
+    return 'kategorije';
+  }
+  return 'kategorija';
+}
+
 export function shuffle<T>(items: readonly T[]): T[] {
   const result = [...items];
 
